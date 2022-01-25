@@ -1,5 +1,12 @@
 # Debug Adapters
 
+## Install
+
+```bash
+# Unzip lldb
+unzip ./vscode-lldb/lldb.zip -d ./vscode-lldb/
+```
+
 ## Usage
 
 ```bash
