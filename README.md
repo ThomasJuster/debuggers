@@ -1,31 +1,37 @@
 # Debug Adapters
 
+## Pre-requisites
+
+- Docker ([install instructions](https://docs.docker.com/engine/install/))
+- Node.JS
+
 ## Install
 
-1. Install Docker ([instructions here](https://docs.docker.com/engine/install/))
-2. (For C/C++ only) Unzip lldb `unzip ./vscode-lldb/lldb.zip -d ./vscode-lldb/`
+```bash
+# Unzip lldb (for C/C++ only)
+unzip ./vscode-lldb/lldb.zip -d ./vscode-lldb/
+
+# Build the server (for PHP only)
+cd ./vscode-php-debug && npm ci && npm run build && cd ..
+ls -la vscode-php-debug/out/
+# You should see a "phpDebug.js" file
+
+# Build the docker image(s) for adapters you want to use:
+npm run build:php # PHP
+npm run build:lldb # C/C++
+npm run build:python # Python
+```
 
 ## Usage
 
 ```bash
-npm run build:[lldb|php|python] # the debug adapter you want to use
 npm run demo ./path/to/file(.c|.cpp|.php|.py)
 
-# For C
-npm run build:lldb
-npm run demo ./samples/c/hello_world.c
-
-# For C++
-npm run build:lldb
-npm run demo ./samples/cpp/hello_world.cpp
-
-# For PHP
-npm run build:php
-npm run demo ./samples/php/hello_world.php
-
-# For Python
-npm run build:python
-npm run demo ./samples/python/hello_world.py
+# Examples:
+npm run demo ./samples/c/hello_world.c # For C
+npm run demo ./samples/cpp/hello_world.cpp # For C++
+npm run demo ./samples/php/hello_world.php # For PHP
+npm run demo ./samples/python/hello_world.py # For Python
 ```
 
 ## Re-install LLDB debug adapter server (C/C++ debug adapter)
