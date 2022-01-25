@@ -10,4 +10,11 @@ if (!file || !fs.existsSync(file)) throw new Error('File not found. Expected a f
 const code = fs.readFileSync(file, 'utf-8')
 const fileName = path.basename(file)
 
-callScript(code, fileName, 'debug')
+callScript(code, fileName, 'debug').then((rawJSON) => {
+  console.info('Raw JSON', rawJSON)
+  try {
+    console.info('JSON:', JSON.parse(rawJSON))
+  } catch {
+    console.info('could not parse JSON', rawJSON)
+  }
+})

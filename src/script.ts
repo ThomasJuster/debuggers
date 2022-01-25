@@ -23,7 +23,8 @@ let runner!: StepsRunner
 async function main() {
   logger.debug({ language, fileName, code })
   runner = makeStepsRunner({
-    logLevel: 'Off', // logger.level === 'debug' ? 'On' : 'Off',
+    // logLevel: 'On',
+    logLevel: logger.level === 'debug' ? 'On' : 'Off',
     main: { code, relativePath: fileName },
     files: [],
   }, language)
@@ -33,7 +34,7 @@ async function main() {
     demo: 'toto',
     etc: true,
   }
-  logger.result(JSON.stringify(result, null, 2))
+  logger.result('RESULT_BEGIN', JSON.stringify(result), 'RESULT_END')
 }
 
 const cleanExit = (origin: string) => async () => {

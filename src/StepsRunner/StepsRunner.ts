@@ -55,7 +55,7 @@ export abstract class StepsRunner {
   }
 
   async destroy(origin: string): Promise<void> {
-    if (this.destroyed) return logger.warn('[StepsRunner] destroy already performed')
+    if (this.destroyed) return logger.debug('[StepsRunner] destroy already performed')
     
     logger.debug('\n')
     logger.debug(`[StepsRunner] Destroy ⋅ ${origin}`)
@@ -96,7 +96,7 @@ export abstract class StepsRunner {
   protected registerEvents(): void {
     this.client.onContinued((event) => logger.debug('[Event] Continued', event))
     // this.client.onCapabilities((event) => logger.dir({ event }))
-    // this.client.onExited((event) => logger.dir({ event }))
+    this.client.onExited((event) => logger.dir({ event }))
     // this.client.onInvalidated((event) => logger.debug('[Event] Invalidated', event))
     // this.client.onInitialized((event) => logger.debug('[Event] Initialized', event))
     // this.client.onLoadedSource((event) => logger.debug('[Event] LoadedSource', event))

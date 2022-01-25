@@ -44,7 +44,7 @@ export class PHPStepsRunner extends StepsRunner {
   }
 
   protected async afterDestroy(): Promise<void> {
-      
+    // silence is golden.
   }
 
   private async startAdapterServer(): Promise<void> {
