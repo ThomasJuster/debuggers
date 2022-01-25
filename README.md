@@ -8,8 +8,8 @@
 ## Usage
 
 ```bash
-npm run build:[lldb|php] # the debug adapter you want to use
-npm run demo ./path/to/file(.c|.cpp|.php)
+npm run build:[lldb|php|python] # the debug adapter you want to use
+npm run demo ./path/to/file(.c|.cpp|.php|.py)
 
 # For C
 npm run build:lldb
@@ -22,9 +22,13 @@ npm run demo ./samples/cpp/hello_world.cpp
 # For PHP
 npm run build:php
 npm run demo ./samples/php/hello_world.php
+
+# For Python
+npm run build:python
+npm run demo ./samples/python/hello_world.py
 ```
 
-## Re-install LLDB (C/C++ debug adapter)
+## Re-install LLDB debug adapter server (C/C++ debug adapter)
 
 ### Method 1 − Copy files from actual extension
 
@@ -36,8 +40,9 @@ npm run demo ./samples/php/hello_world.php
 
 1. Pull [repo](https://github.com/vadimcn/vscode-lldb) `git clone https://github.com/vadimcn/vscode-lldb`
 2. Check out "Building" [documentation](https://github.com/vadimcn/vscode-lldb) (which did not work for me)
+3. Move build result to `./vscode-lldb`
 
-## PHP
+## Re-install PHP debug adapter server
 
 ```bash
 git clone https://github.com/xdebug/vscode-php-debug vscode-php-debug
@@ -49,3 +54,7 @@ npm run build # Generates out/ folder
 # Test that the server can be launched:
 node ./out/phpDebug.js --server=4711
 ```
+
+## Re-install Python debug adapter
+
+Nothing to do, it is already maintained by a Microsoft team ; DebugPy already implements the Debug Adapter Protocol.
