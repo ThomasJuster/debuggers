@@ -1,0 +1,26 @@
+FROM node:16.13.2 as node
+FROM python:3.10.2
+
+# install Node
+COPY --from=node /usr/local/lib/node_modules /usr/local/lib/node_modules
+COPY --from=node /usr/local/bin/node /usr/local/bin/node
+
+RUN python -V
+RUN pip -V
+RUN pip install debugpy
+
+ENV ROOT=/usr/python-debug
+WORKDIR ${ROOT}
+RUN mkdir ${ROOT}/programs
+
+# Script
+COPY ./node_modules $ROOT/node_modules
+COPY ./out $ROOT/src
+# COPY ./src $ROOT/src
+COPY ./package.json $ROOT/
+
+# EXPOSE ${SERVER_PORT}
+ENTRYPOINT ["node", "./src/script.js"]
+CMD [""]
+
+# RUN pip install debugpy && echo 'print("Hello World!")' > script.py && python -m debugpy --listen localhost:4711 --wait-for-client ./script.py

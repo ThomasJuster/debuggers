@@ -85,4 +85,7 @@ const dockerRunConfigs = {
   '.php': {
     image: 'php-debugger',
   },
+  '.py': {
+    image: 'python-debugger',
+  }
 }
