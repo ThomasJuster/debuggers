@@ -18,6 +18,7 @@ export const logger = {
     depth: 3,
     ...options,
   }),
+  warn: (...args: any[]) => console.warn(...args),
   error: (...args: any[]) => console.error(...args),
   result: (...args: any[]) => console.info(...args),
   setLevel: (newLevel: LoggerLevel) => { level = newLevel },

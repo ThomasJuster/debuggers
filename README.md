@@ -2,10 +2,8 @@
 
 ## Install
 
-```bash
-# Unzip lldb
-unzip ./vscode-lldb/lldb.zip -d ./vscode-lldb/
-```
+1. Install Docker ([instructions here](https://docs.docker.com/engine/install/))
+2. (For C/C++ only) Unzip lldb `unzip ./vscode-lldb/lldb.zip -d ./vscode-lldb/`
 
 ## Usage
 

@@ -1,8 +1,8 @@
 // @ts-check
 import path from 'path'
 import { logger } from './logger'
-import { DebugClient } from './DebugClient'
-import { languageByExtension, toLanguageExtension } from './configurations'
+import { StepsRunner } from './StepsRunner/StepsRunner'
+import { languageByExtension, makeStepsRunner, toLanguageExtension } from './StepsRunner/factory'
 
 logger.debug('process args', process.argv.slice(2))
 
@@ -19,17 +19,17 @@ if (!language) {
   process.exit(1)
 }
 
-let client!: DebugClient
+let runner!: StepsRunner
 async function main() {
   logger.debug({ language, fileName, code })
-  client = new DebugClient({
-    language,
+  runner = makeStepsRunner({
     logLevel: 'Off', // logger.level === 'debug' ? 'On' : 'Off',
-    code,
-    fileName,
-  })
-  await client.runSteps()
+    main: { code, relativePath: fileName },
+    files: [],
+  }, language)
+  const steps = await runner.runSteps()
   const result = {
+    steps,
     demo: 'toto',
     etc: true,
   }
@@ -38,7 +38,7 @@ async function main() {
 
 const cleanExit = (origin: string) => async () => {
   logger.debug(`\nCleaning up (${origin})…`)
-  if (client) await client.disconnect('cleanExit()')
+  if (runner) await runner.destroy('cleanExit')
 }
 
 process.on('SIGINT', cleanExit('SIGINT'));
