@@ -1,41 +1,46 @@
-PHP
-===
+# Debug Adapters
 
-Installer PHP avec XDebug
--------------------------
+## Usage
 
-- Installer PHP
-- Installer XDebug
+```bash
+npm run build:[lldb|php] # the debug adapter you want to use
+npm run demo ./path/to/file(.c|.cpp|.php)
 
-Dans php.ini :
+# For C
+npm run build:lldb
+npm run demo ./samples/c/hello_world.c
 
-    zend_extension=xdebug
-    xdebug.client_port = 9003
+# For C++
+npm run build:lldb
+npm run demo ./samples/cpp/hello_world.cpp
 
+# For PHP
+npm run build:php
+npm run demo ./samples/php/hello_world.php
+```
 
-Lancer le serveur DAP pour PHP
-------------------------------
+## Re-install LLDB (C/C++ debug adapter)
 
-Récupérer l'extension vscode PHP : https://github.com/xdebug/vscode-php-debug
+### Method 1 − Copy files from actual extension
 
-Build le projet :
+1. Install [codelldb](https://marketplace.visualstudio.com/items?itemName=vadimcn.vscode-lldb) VSCode extension
+2. Go to `~/.vscode/extensions/~/.vscode/extensions/vadimcn.vscode-lldb-[version]`
+3. Copy folders `adapter`, `formatters` and `lldb` to `./vscode-lldb`
 
-    yarn install
-    yarn build
+### Method 2 − Build from repo
 
-Lancer le serveur DAP en standalone :
+1. Pull [repo](https://github.com/vadimcn/vscode-lldb) `git clone https://github.com/vadimcn/vscode-lldb`
+2. Check out "Building" [documentation](https://github.com/vadimcn/vscode-lldb) (which did not work for me)
 
-    cd out
-    node phpDebug.js --server=4711
+## PHP
 
+```bash
+git clone https://github.com/xdebug/vscode-php-debug vscode-php-debug
+cd vscode-php-debug
+rm -rf .git/
+npm clean-install # install from package-lock
+npm run build # Generates out/ folder
 
-Lancer le prototype du server d'exécution
------------------------------------------
-
-Récupérer le script d'interfaçage de test avec le serveur DAP (qui deviendra le "serveur d'exécution") :
-https://gitlab.com/arkandias33/dap-test
-
-Build et lancer le script :
-
-    yarn install
-    node index.js
+# Test that the server can be launched:
+node ./out/phpDebug.js --server=4711
+```

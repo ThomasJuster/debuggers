@@ -7,11 +7,11 @@ import { logger } from '../logger'
 const launcherFileDir = path.resolve(process.cwd(), './vscode-php-debug/out')
 const launcherFile = 'phpDebug.js'
 
-logger.debug({ launcherFile })
-
 export const startPHPAdapterServer: Configuration['startAdapterServer'] = async () => {
   const host = 'localhost'
   const port = 4711
+
+  logger.debug('Start PHP DAP Server on port', port)
 
   return new Promise((resolve, reject) => {
     let childProcess!: ChildProcess
@@ -19,7 +19,7 @@ export const startPHPAdapterServer: Configuration['startAdapterServer'] = async 
         launcherFile,
         `--server=${port}`,
       ], {
-        stdio: 'pipe',
+        stdio: ['ignore', 'pipe', 'pipe'],
         cwd: launcherFileDir,
         detached: true,
       },
@@ -27,10 +27,13 @@ export const startPHPAdapterServer: Configuration['startAdapterServer'] = async 
     childProcess.on('message', () => {
       logger.debug('Message')
     })
-    childProcess?.stderr?.once('data', (data) => {
+    const resolveOnMessage = (origin: string) => (data: any) => {
+      logger.debug(`DAP server ready (${origin})`)
       const message = data.toString('utf8')
-      if (message.startsWith('waiting for debug')) resolve({ childProcess, host, port })
-    })
+      if (message.startsWith('waiting for debug')) resolve({ adapter: childProcess, host, port })
+    }
+    childProcess?.stdout?.once('data', resolveOnMessage('stderr'))
+    childProcess?.stderr?.once('data', resolveOnMessage('stderr'))
     if (logger.level === 'debug') childProcess?.stdout?.on('data', (data) => process.stdout.write(data))
     if (logger.level === 'debug') childProcess?.stderr?.on('data', (data) => process.stderr.write(data))
     childProcess.on('error', (error) => {

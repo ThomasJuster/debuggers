@@ -4,8 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "prebuild": "tsc --outDir out",
-    "build": "docker build -f ./Dockerfile `# build-folder` . -t php-debugger",
+    "build:ts": "tsc --outDir out",
+    "build:php": "npm run build:ts && docker build -f ./PHP_Dockerfile `# build-folder` . -t php-debugger",
+    "build:lldb": "npm run build:ts && docker build -f ./LLDB_Dockerfile `# build-folder` . -t lldb-debugger",
     "demo": "node call-script-demo.mjs"
   },
   "author": "",

@@ -1,6 +1,8 @@
 // @ts-check
+import path from 'path'
 import { logger } from './logger'
 import { DebugClient } from './DebugClient'
+import { languageByExtension, toLanguageExtension } from './configurations'
 
 logger.debug('process args', process.argv.slice(2))
 
@@ -10,20 +12,23 @@ if (!code) {
   process.exit(1)
 }
 
+const fileExtension = path.extname(fileName)
+const language = languageByExtension[toLanguageExtension(fileExtension)]
+if (!language) {
+  logger.error(new Error(`Unreckognized file extension: "${fileExtension}". Accepted: "${Object.keys(languageByExtension).join('", "')}"`))
+  process.exit(1)
+}
+
 let client!: DebugClient
 async function main() {
+  logger.debug({ language, fileName, code })
   client = new DebugClient({
-    language: 'php',
-    logLevel: 'Off',
+    language,
+    logLevel: 'Off', // logger.level === 'debug' ? 'On' : 'Off',
     code,
     fileName,
   })
   await client.runSteps()
-  // await debugPHP(
-  //   code,
-  //   fileName || 'tmp.php',
-  //   LogLevel.Off, // logger.level === 'off' ? LogLevel.Off : LogLevel.Verbose,
-  // )
   const result = {
     demo: 'toto',
     etc: true,
@@ -33,17 +38,13 @@ async function main() {
 
 const cleanExit = (origin: string) => async () => {
   logger.debug(`\nCleaning up (${origin})…`)
-  await client.disconnect()
-  process.exit(0)
+  if (client) await client.disconnect('cleanExit()')
 }
 
 process.on('SIGINT', cleanExit('SIGINT'));
 process.on('SIGTERM', cleanExit('SIGTERM'));
 
 main()
-  .catch((error) => {
-    logger.error('Error:', error)
-    return cleanExit('main().catch()')
-  })
+  .then(cleanExit('main'))
   .then(() => process.exit(0))
   .catch(() => process.exit(1))
