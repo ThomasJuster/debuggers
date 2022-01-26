@@ -20,6 +20,12 @@ export class LLDBStepsRunner extends StepsRunner {
     super(options)
   }
 
+  protected override canDigScope(scope: DebugProtocol.Scope): boolean {
+    // if (this.language === 'C++')
+    const forbiddenScopes = ['Registers', 'Static']
+    return !forbiddenScopes.includes(scope.name)
+  }
+
   protected async connect(): Promise<void> {
     logger.debug(1, '[LLDB StepsRunner] start adapter server')
     await this.startAdapterServer()
@@ -29,7 +35,8 @@ export class LLDBStepsRunner extends StepsRunner {
       host: this.dap.host,
       port: this.dap.port,
       loggerName: `${this.language} debug adapter client`,
-      logLevel: LogLevel[this.options.logLevel ?? 'Off'],
+      // logLevel: LogLevel[this.options.logLevel ?? 'Off'],
+      logLevel: LogLevel['Off'],
     })
 
     logger.debug(3, '[LLDB StepsRunner] register events')

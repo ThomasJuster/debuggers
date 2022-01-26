@@ -7,7 +7,6 @@ import { StepsRunner } from './StepsRunner'
 
 export class PythonStepsRunner extends StepsRunner {
   private language = 'Python'
-  private logFilePath = path.resolve(process.cwd(), 'debugpy.log')
   private dap = {
     host: 'localhost',
     port: 4711,
@@ -15,14 +14,15 @@ export class PythonStepsRunner extends StepsRunner {
   
   protected async connect(): Promise<void> {
     logger.debug(1, '[Python StepsRunner] start adapter server')
-    await this.spawnDebugClient()
+    await this.spawnDebugAdapterServer()
 
     logger.debug(2, '[Python StepsRunner] instantiate SocketDebugClient')
     this.client = new SocketDebugClient({
       host: this.dap.host,
       port: this.dap.port,
       loggerName: `${this.language} debug adapter client`,
-      logLevel: LogLevel[this.options.logLevel ?? 'Off'],
+      // logLevel: LogLevel[this.options.logLevel ?? 'Off'],
+      logLevel: LogLevel['Off'],
     })
 
     const initialized = new Promise<void>((resolve) => {
@@ -39,7 +39,7 @@ export class PythonStepsRunner extends StepsRunner {
     await this.client.connectAdapter()
 
     logger.debug(5, '[Python StepsRunner] initialize client')
-    await this.client.initialize({
+    this.capabilities = await this.client.initialize({
       adapterID: this.language,
       pathFormat: 'path',
     })
@@ -47,6 +47,7 @@ export class PythonStepsRunner extends StepsRunner {
     logger.debug(6, '[Python StepsRunner] launch client')
     const launched = this.client.launch({
       program: this.programPath,
+      justMyCode: true,
     } as DebugProtocol.LaunchRequestArguments)
 
     launched.then((response) => {
@@ -60,7 +61,12 @@ export class PythonStepsRunner extends StepsRunner {
     // silence is golden.
   }
 
-  private async spawnDebugClient(): Promise<void> {
+  protected override canDigVariable(variable: DebugProtocol.Variable): boolean {
+    const undiggableNames = ['special variables', '__builtins__']
+    return !undiggableNames.includes(variable.name)
+  }
+
+  private async spawnDebugAdapterServer(): Promise<void> {
     const debugPyFolderPath = await this.findDebugPyFolder()
 
     return new Promise<void>((resolve) => {

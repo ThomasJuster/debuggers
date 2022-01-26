@@ -3,9 +3,21 @@ import fs from 'fs'
 import path from 'path'
 import cp from 'child_process'
 import { logger } from '../logger'
+import { DebugProtocol } from 'vscode-debugprotocol'
 
 type Steps = StepSnapshot[]
-type StepSnapshot = unknown
+export interface StepSnapshot {
+  stackFrames: StackFrame[]
+}
+export interface StackFrame extends DebugProtocol.StackFrame {
+  scopes: Scope[]
+}
+export interface Scope extends DebugProtocol.Scope {
+  variables: Variable[]
+}
+export interface Variable extends DebugProtocol.Variable {
+  variables: Variable[]
+}
 
 interface File {
   code: string,
@@ -22,25 +34,37 @@ export abstract class StepsRunner {
   protected processes: cp.ChildProcess[] = []
   protected subscribers: Unsubscribable[] = []
   protected programPath = this.getFilePath(this.options.main.relativePath)
+  protected capabilities?: DebugProtocol.Capabilities
+  
+  private stepsAcc: Steps = []
+  private resolveSteps: () => void = () => {}
+  private steps = new Promise<Steps>((resolve) => {
+    this.resolveSteps = () => resolve(this.stepsAcc)
+  })
 
   constructor(protected options: StepsRunnerOptions) {}
 
   protected abstract connect(): Promise<void>
   protected abstract afterDestroy(): Promise<void>
+  protected canDigVariable(variable: DebugProtocol.Variable): boolean {
+    return true
+  }
+  protected canDigScope(scope: DebugProtocol.Scope): boolean {
+    return true
+  }
 
   async runSteps(): Promise<Steps> {
     await this.beforeConnect()
     await this.connect()
     if (!this.client) throw new Error('Client must be defined after connect hook')
 
-    const steps = new Promise<Steps>((resolve) => {
-      const subscriber = this.client.onStopped(async (stoppedEvent) => {
-        logger.debug('[Event] Stopped', stoppedEvent);
-        if (stoppedEvent.reason !== 'breakpoint' || typeof stoppedEvent.threadId !== 'number') return
-        resolve(this.executeSteps(stoppedEvent.threadId))
-      })
-      this.subscribers.push(subscriber)
+    const subscriber = this.client.onStopped(async (stoppedEvent) => {
+      logger.debug('[Event] Stopped', stoppedEvent);
+      const reasons = ['breakpoint', 'step']
+      if (!reasons.includes(stoppedEvent.reason) || typeof stoppedEvent.threadId !== 'number') return
+      this.setSnapshotAndStepIn(stoppedEvent.threadId)
     })
+    this.subscribers.push(subscriber)
 
     await this.setBreakpoints()
 
@@ -48,7 +72,13 @@ export abstract class StepsRunner {
     // send 'configuration done' (in some debuggers this will trigger 'continue' if attach was awaited)
     await this.client.configurationDone({})
 
-    const result = await steps
+    const result = await this.steps
+    const filtered = result.map((snapshot) => ({
+      ...snapshot,
+      stackFrames: snapshot.stackFrames.filter((frame) => frame.source?.path === this.programPath),
+    })).filter(({ stackFrames }) => stackFrames.length > 0)
+    logger.dir({ steps: filtered }, { colors: true, depth: 20 })
+
     await this.destroy('runSteps')
 
     return result
@@ -70,41 +100,74 @@ export abstract class StepsRunner {
     this.destroyed = true
   }
 
-  private async executeSteps(threadId: number): Promise<Steps> {
-    const steps = [await this.getSnapshot(threadId)]
-    // await this.client.stepIn({ threadId: 12, granularity: 'statement' })
-    // steps.push(await this.getSnapshot())
-    // await this.client.stepOut({ threadId: 12, granularity: 'statement' })
-    return steps
+  private async setSnapshotAndStepIn(threadId: number): Promise<void> {
+    const i = this.stepsAcc.length
+    try {
+      logger.debug('Execute steps', i)
+      const snapshot = await this.getSnapshot(threadId)
+      logger.dir({ snapshot }, { colors: true, depth: 10 })
+      this.stepsAcc.push(snapshot)
+      logger.debug('StepIn', i, this.stepsAcc[i-1]?.stackFrames[0].source ?? '')
+      logger.debug('Source', i, { sourcePath: snapshot.stackFrames[0].source?.path, programPath: this.programPath })
+      snapshot.stackFrames[0].source?.path === this.programPath
+        ? await this.client.stepIn({ threadId, granularity: 'instruction' })
+        : await this.client.stepOut({ threadId, granularity: 'instruction' })
+    } catch (error) {
+      logger.debug('Failed at step', i, error)
+    }
   }
 
   private async getSnapshot(threadId: number): Promise<StepSnapshot> {
-    const { stackFrames } = await this.client.stackTrace({ threadId });
-    logger.dir({ stackFrames })
+    const result = await this.client.stackTrace({ threadId });
+    const stackFrames = await Promise.all(result.stackFrames.map((stackFrame) => this.getStackFrame(stackFrame)))
+    return { stackFrames }
+  }
 
-    const { scopes } = await this.client.scopes({ frameId: stackFrames[0].id })
-    logger.dir({ scopes })
-    const localsScope = scopes.find((scope) => scope.name.startsWith('Local'))
-    if (!localsScope) return {}
+  private async getStackFrame(stackFrame: DebugProtocol.StackFrame): Promise<StackFrame> {
+    const result = await this.client.scopes({ frameId: stackFrame.id })
+    const scopes = await Promise.all(result.scopes.map((scope) => this.getScope(scope)))
+    return { ...stackFrame, scopes }
+  }
 
-    const { variables } = await this.client.variables({ variablesReference: localsScope.variablesReference })
-    logger.dir({ variables })
+  private async getScope(scope: DebugProtocol.Scope): Promise<Scope> {
+    if (!this.canDigScope(scope)) return { ...scope, variables: [] }
+    const result = await this.client.variables({ variablesReference: scope.variablesReference })
+    const isLocalScope = scope.name.startsWith('Local')
+    const variablesMaxDepth = isLocalScope ? 3 : 0
+    // logger.dir({ scope, result })
+    const variables = await Promise.all(result.variables.map((variable) => this.getVariable(variable, variablesMaxDepth)))
+    return { ...scope, variables }
+  }
 
-    return {}
+  private async getVariable(variable: DebugProtocol.Variable, maxDepth: number, currentDepth = 0): Promise<Variable> {
+    const shouldGetSubVariables = variable.variablesReference > 0 && currentDepth <= maxDepth && this.canDigVariable(variable)
+    if (!shouldGetSubVariables) return { ...variable, variables: [] }
+    try {
+      const result = await this.client.variables({ variablesReference: variable.variablesReference })
+      const variables = await Promise.all(result.variables.map((variable) => this.getVariable(variable, maxDepth, currentDepth + 1)))
+      return { ...variable, variables }
+    } catch (error) {
+      logger.dir({ variable, error })
+      return { ...variable, variables: [] }
+    }
   }
 
   protected registerEvents(): void {
     this.client.onContinued((event) => logger.debug('[Event] Continued', event))
     // this.client.onCapabilities((event) => logger.dir({ event }))
-    this.client.onExited((event) => logger.dir({ event }))
+    this.client.onExited((event) => {
+      logger.debug('[Event] Exited', event.exitCode)
+      if (event.exitCode === 0) this.resolveSteps()
+    })
     // this.client.onInvalidated((event) => logger.debug('[Event] Invalidated', event))
     // this.client.onInitialized((event) => logger.debug('[Event] Initialized', event))
     // this.client.onLoadedSource((event) => logger.debug('[Event] LoadedSource', event))
     // this.client.onMemory((event) => logger.debug('[Event] Memory', event))
     // this.client.onModule((event) => logger.debug('[Event] Module', event))
-    this.client.onOutput(({ output, ...event }) => logger.debug('[Event] Output', output, event))
+    this.client.onOutput(({ output, ...event }) => logger.debug('[Event] Output', JSON.stringify(output), event))
     this.client.onTerminated(async (event) => {
-      logger.debug('[Event] Terminated')
+      logger.debug('[Event] Terminated − resolve steps', event ?? '')
+      this.resolveSteps()
       this.client.disconnectAdapter();
     });
   
@@ -114,17 +177,28 @@ export abstract class StepsRunner {
   }
 
   private async setBreakpoints(): Promise<void> {
-    const breakpoints = this.options.main.code.split('\n').map((_, index) => ({ line: index + 1 }))
-    // const breakpoints = [{ line: 1 }]
-    // logger.dir({ breakpoints })
+    const lines = this.options.main.code.split('\n').length
 
     logger.debug('[StepsRunner] set breakpoints')
-    const response = await this.client.setBreakpoints({
-      breakpoints,
+    let response = await this.client.setBreakpoints({
+      breakpoints: Array.from({ length: lines }, (_, i) => ({ line: i + 1 })),
       source: {
         path: this.programPath
       }
     })
+    logger.debug('[StepsRunner] set breakpoints intermediate response', response)
+
+    const verifiedBreakpoints = response.breakpoints
+      .filter((breakpoint) => breakpoint.verified && typeof breakpoint.line === 'number')
+      .map(({ line }) => ({ line: line as number }))
+
+    if (verifiedBreakpoints.length === lines) return
+
+    response = await this.client.setBreakpoints({
+      breakpoints: verifiedBreakpoints,
+      source: { path: this.programPath },
+    })
+
     logger.debug('[StepsRunner] set breakpoints response', response)
   }
 

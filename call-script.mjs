@@ -2,7 +2,7 @@
 import path from 'path'
 import cp from 'child_process'
 
-// const escapeBashString = (string) => `${string.replace(/([\$"])/g, '\\$1')}`
+const escapeBashString = (string) => `"${string.replace(/([\$"])/g, '\\$1')}"`
 // const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 /**
@@ -19,26 +19,20 @@ export async function callScript(code, fileName, logLevel = 'off') {
 
   const command = [
     'docker', 'run',
-    // '-it',
+    '-it',
     '--rm',
     '--env',
     `LOG_LEVEL=${logLevel}`,
     docker.image,
-    code,
-    fileName,
-    // code && escapeBashString(code),
-    // fileName && escapeBashString(fileName),
+    // code,
+    // fileName,
+    code && escapeBashString(code),
+    fileName && escapeBashString(fileName),
   ].filter(Boolean)
 
-  // cp.execSync(command.join(' '), { stdio: 'inherit' })
-  const subprocess = cp.spawn(command[0], command.slice(1), { stdio: ['ignore', 'pipe', 'pipe'] })
-
-  if (logLevel === 'debug') subprocess.stdout.on('data', (data) => process.stdout.write(data))
-  if (logLevel === 'debug') subprocess.stderr.on('data', (data) => process.stderr.write(data))
-
   const json = new Promise((resolve, reject) => {
-    subprocess.on('error', (error) => {
-      console.error('subprocess error:', error)
+    process.on('error', (error) => {
+      console.error('process error:', error)
       reject(error)
     })
 
@@ -54,11 +48,18 @@ export async function callScript(code, fileName, logLevel = 'off') {
       if (message.includes(end)) {
         message = message.slice(0, message.indexOf(end))
         resolve((raw + message).trim())
-        subprocess.stdout.off('data', onData)
+        process.stdout.off('data', onData)
       }
     }
-    subprocess.stdout.on('data', onData)
+    process.stdout.on('data', onData)
   })
+
+  console.info('command', command.join(' '))
+  cp.execSync(command.join(' '), { stdio: 'inherit' })
+  // const subprocess = cp.spawn(command[0], command.slice(1), { stdio: ['ignore', 'pipe', 'pipe'] })
+
+  // if (logLevel === 'debug') subprocess.stdout.on('data', (data) => process.stdout.write(data))
+  // if (logLevel === 'debug') subprocess.stderr.on('data', (data) => process.stderr.write(data))
   
   const rawJSON = await json
   return rawJSON
