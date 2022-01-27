@@ -9,18 +9,8 @@ RUN python -V
 RUN pip -V
 RUN pip install debugpy
 
-ENV ROOT=/usr/python-debug
+ENV ROOT=/usr/project
 WORKDIR ${ROOT}
-RUN mkdir ${ROOT}/programs
 
-# Script
-COPY ./node_modules $ROOT/node_modules
-COPY ./out $ROOT/src
-# COPY ./src $ROOT/src
-COPY ./package.json $ROOT/
-
-# EXPOSE ${SERVER_PORT}
-ENTRYPOINT ["node", "./src/script.js"]
+ENTRYPOINT ["node", "./out/script.js"]
 CMD [""]
-
-# RUN pip install debugpy && echo 'print("Hello World!")' > script.py && python -m debugpy --listen localhost:4711 --wait-for-client ./script.py

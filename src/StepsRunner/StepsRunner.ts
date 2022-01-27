@@ -20,7 +20,6 @@ export interface Variable extends DebugProtocol.Variable {
 }
 
 interface File {
-  code: string,
   relativePath: string,
 }
 export interface StepsRunnerOptions {
@@ -36,6 +35,7 @@ export abstract class StepsRunner {
   protected programPath = this.getFilePath(this.options.main.relativePath)
   protected capabilities?: DebugProtocol.Capabilities
   
+  private programCode = fs.readFileSync(this.programPath, 'utf-8')
   private stepsAcc: Steps = []
   private resolveSteps: () => void = () => {}
   private steps = new Promise<Steps>((resolve) => {
@@ -95,7 +95,6 @@ export abstract class StepsRunner {
     })
     this.client.disconnectAdapter()
     await this.client.disconnect({}).catch(() => {/* throws if already disconnected */})
-    await this.removeFiles()
     await this.afterDestroy()
     this.destroyed = true
   }
@@ -154,16 +153,10 @@ export abstract class StepsRunner {
 
   protected registerEvents(): void {
     this.client.onContinued((event) => logger.debug('[Event] Continued', event))
-    // this.client.onCapabilities((event) => logger.dir({ event }))
     this.client.onExited((event) => {
       logger.debug('[Event] Exited', event.exitCode)
       if (event.exitCode === 0) this.resolveSteps()
     })
-    // this.client.onInvalidated((event) => logger.debug('[Event] Invalidated', event))
-    // this.client.onInitialized((event) => logger.debug('[Event] Initialized', event))
-    // this.client.onLoadedSource((event) => logger.debug('[Event] LoadedSource', event))
-    // this.client.onMemory((event) => logger.debug('[Event] Memory', event))
-    // this.client.onModule((event) => logger.debug('[Event] Module', event))
     this.client.onOutput(({ output, ...event }) => logger.debug('[Event] Output', JSON.stringify(output), event))
     this.client.onTerminated(async (event) => {
       logger.debug('[Event] Terminated − resolve steps', event ?? '')
@@ -177,7 +170,7 @@ export abstract class StepsRunner {
   }
 
   private async setBreakpoints(): Promise<void> {
-    const lines = this.options.main.code.split('\n').length
+    const lines = this.programCode.split('\n').length
 
     logger.debug('[StepsRunner] set breakpoints')
     let response = await this.client.setBreakpoints({
@@ -202,24 +195,7 @@ export abstract class StepsRunner {
     logger.debug('[StepsRunner] set breakpoints response', response)
   }
 
-  private async beforeConnect(): Promise<void> {
-    await this.createFiles()
-  }
-
-  private async createFiles(): Promise<void> {
-    const files = [this.options.main, ...this.options.files]
-    await Promise.all(files.map(({ code, relativePath }) => {
-      // const fileName = path.basename(relativePath)
-      return fs.promises.writeFile(this.getFilePath(relativePath), code, 'utf-8')
-    }))
-  }
-
-  private async removeFiles(): Promise<void> {
-    const files = [this.options.main, ...this.options.files]
-    await Promise.all(files.map(({ relativePath }) => {
-      fs.promises.unlink(this.getFilePath(relativePath)).catch(() => {/* throws when files already deleted */})
-    }))
-  }
+  private async beforeConnect(): Promise<void> {}
 
   private getFilePath(relativePath: string): string {
     return path.resolve(process.cwd(), relativePath)

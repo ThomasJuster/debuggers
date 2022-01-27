@@ -25,13 +25,13 @@ npm run build:python # Python
 ## Usage
 
 ```bash
-npm run demo ./path/to/file(.c|.cpp|.php|.py)
+npm run debug ./path/to/file(.c|.cpp|.php|.py)
 
 # Examples:
-npm run demo ./samples/c/hello_world.c # For C
-npm run demo ./samples/cpp/hello_world.cpp # For C++
-npm run demo ./samples/php/hello_world.php # For PHP
-npm run demo ./samples/python/hello_world.py # For Python
+npm run debug ./samples/c/hello_world.c # For C
+npm run debug ./samples/cpp/hello_world.cpp # For C++
+npm run debug ./samples/php/hello_world.php # For PHP
+npm run debug ./samples/python/hello_world.py # For Python
 ```
 
 ## Re-install LLDB debug adapter server (C/C++ debug adapter)

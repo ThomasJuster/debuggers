@@ -5,7 +5,7 @@ COPY --from=node /usr/local/lib/node_modules /usr/local/lib/node_modules
 COPY --from=node /usr/local/bin/node /usr/local/bin/node
 RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm
 
-# Install Rust
+# Install Rust because adapter server is written in Rust
 RUN apt-get update && apt-get install build-essential curl -y
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs > rustup_install && sh rustup_install -y
 
@@ -16,20 +16,9 @@ RUN rustc -V
 # RUN ls -la /usr/share/gcc
 RUN gcc --version
 
-# ENV SERVER_PORT=4711
-ENV ROOT=/usr/lldb-debug
+ENV ROOT=/usr/project
 WORKDIR ${ROOT}
-RUN mkdir ${ROOT}/programs
-
-# Debug adapter server
-COPY ./vscode-lldb $ROOT/vscode-lldb
-
-# Script
-COPY ./node_modules $ROOT/node_modules
-COPY ./out $ROOT/src
-# COPY ./src $ROOT/src
-COPY ./package.json $ROOT/
 
 # EXPOSE ${SERVER_PORT}
-ENTRYPOINT ["node", "./src/script.js"]
+ENTRYPOINT ["node", "./out/script.js"]
 CMD [""]

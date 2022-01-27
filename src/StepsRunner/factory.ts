@@ -18,7 +18,7 @@ export const languageByExtension: Record<LanguageExtension, Language> = {
 }
 const languages = Object.keys(languageByExtension) as Language[]
 
-export const makeStepsRunner = (options: StepsRunnerOptions, language: Language): StepsRunner => {
+export const makeStepsRunner = (language: Language, options: StepsRunnerOptions): StepsRunner => {
   switch (language) {
     case 'PHP': return new PHPStepsRunner(options)
     case 'C': return new LLDBStepsRunner(options, 'C')

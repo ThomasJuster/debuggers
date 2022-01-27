@@ -135,7 +135,7 @@ const configurations: Record<Language, Configuration> = {
       initCommands: ['settings set target.disable-aslr false']
     } as DebugProtocol.LaunchRequestArguments
   },
-  "C++": {
+  'C++': {
     compile: (mainFilePath) => {
       const executablePath = removeExt(mainFilePath)
       cp.execSync(`g++ -g ${mainFilePath} -o ${executablePath}`, { stdio: 'inherit' })

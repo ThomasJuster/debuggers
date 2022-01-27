@@ -2,33 +2,20 @@
 import path from 'path'
 import cp from 'child_process'
 
-const escapeBashString = (string) => `"${string.replace(/([\$"])/g, '\\$1')}"`
-// const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+// const escapeBashString = (string) => `"${string.replace(/([\$"])/g, '\\$1')}"`
 
 /**
  * Call script
- * @param {string} code
- * @param {?string} fileName
+ * @param {string} mainFilePath path to main file of the project to debug
  * @param {?import('./src/logger').LoggerLevel} logLevel
  * @returns {Promise<string>} rawJSON
  */
-export async function callScript(code, fileName, logLevel = 'off') {
-  const fileExtension = path.extname(fileName)
+export async function callScript(mainFilePath, logLevel = 'off') {
+  const fileExtension = path.extname(mainFilePath)
   const docker = dockerRunConfigs[fileExtension]
   if (!docker) throw new Error(`Unknown extension "${fileExtension}". Accepted: "${Object.keys(dockerRunConfigs).join('", "')}"`)
 
-  const command = [
-    'docker', 'run',
-    '-it',
-    '--rm',
-    '--env',
-    `LOG_LEVEL=${logLevel}`,
-    docker.image,
-    // code,
-    // fileName,
-    code && escapeBashString(code),
-    fileName && escapeBashString(fileName),
-  ].filter(Boolean)
+  const { command, args } = dockerRunCommand(docker, mainFilePath, logLevel)
 
   const json = new Promise((resolve, reject) => {
     process.on('error', (error) => {
@@ -54,25 +41,20 @@ export async function callScript(code, fileName, logLevel = 'off') {
     process.stdout.on('data', onData)
   })
 
-  console.info('command', command.join(' '))
-  cp.execSync(command.join(' '), { stdio: 'inherit' })
-  // const subprocess = cp.spawn(command[0], command.slice(1), { stdio: ['ignore', 'pipe', 'pipe'] })
-
-  // if (logLevel === 'debug') subprocess.stdout.on('data', (data) => process.stdout.write(data))
-  // if (logLevel === 'debug') subprocess.stderr.on('data', (data) => process.stderr.write(data))
+  console.info('command\n', [command, ...args].join(' \\\n  '))
+  cp.spawnSync(command, args, { stdio: 'inherit' })
   
   const rawJSON = await json
   return rawJSON
 }
 
 /**
- * @typedef {'lldb-debugger' | 'php-debugger' | 'python-debugger'} DockerImage
+ * @typedef {'lldb-debugger'|'php-debugger'|'python-debugger'} DockerImage
  */
 
 /**
  * @typedef DockerRunConfig
  * @property {DockerImage} image
- * @property {boolean} [privileged]
  */
 
 /** @type {Record<import('./src/StepsRunner/factory').LanguageExtension, DockerRunConfig>} */
@@ -89,4 +71,79 @@ const dockerRunConfigs = {
   '.py': {
     image: 'python-debugger',
   }
+}
+
+/**
+ * Returns the docker run command
+ * @param {DockerRunConfig} docker
+ * @param {string} mainFilePath
+ * @param {import('./src/logger').LoggerLevel} logLevel
+ * @returns {{ command: string, args: string[] }}
+ */
+const dockerRunCommand = (docker, mainFilePath, logLevel) => {
+  const projectPath = path.dirname(mainFilePath)
+  const command = 'docker'
+  const args = [
+    'run',
+    '-it',
+    '--rm',
+    '--env',
+    `LOG_LEVEL=${logLevel}`,
+    ...mountsPerImage[docker.image].flatMap(toDockerMountArgs),
+    ...toDockerMountArgs({ source: paths.output(paths.selfRoot), target: paths.output(paths.dockerRoot) }),
+    ...toDockerMountArgs({ source: paths.nodeModules(paths.selfRoot), target: paths.nodeModules(paths.dockerRoot) }),
+    ...toDockerMountArgs({ source: path.resolve(paths.selfRoot, projectPath), target: path.resolve(paths.dockerRoot, projectPath) }),
+    docker.image,
+    mainFilePath,
+  ].filter(Boolean)
+  return { command, args }
+}
+
+const paths = {
+  dockerRoot: '/usr/project',
+  selfRoot: process.cwd(),
+  sources: (root) => path.resolve(root, './sources'),
+  output: (root) => path.resolve(root, './out'),
+  nodeModules: (root) => path.resolve(root, './node_modules'),
+  packageJson: (root) => path.resolve(root, './package.json'),
+  packageLock: (root) => path.resolve(root, './package-lock.json'),
+
+  vscodeLldb: (root) => path.resolve(root, './vscode-lldb'),
+  vscodePhpDebug: (root) => path.resolve(root, './vscode-php-debug'),
+  // vscodeCppTools: (root) => path.resolve(root, './vscode-cpptools'),
+}
+
+/**
+ * @typedef DockerMount
+ * @property {'bind'} [type]
+ * @property {string} source
+ * @property {string} target
+ * @property {boolean} [readOnly]
+ */
+
+/** @type {Record<DockerImage, DockerMount[]>} */
+const mountsPerImage = {
+  // 'gdb-debugger': [],
+  'lldb-debugger': [
+    { source: paths.vscodeLldb(paths.selfRoot), target: paths.vscodeLldb(paths.dockerRoot) },
+  ],
+  'php-debugger': [
+    { source: paths.vscodePhpDebug(paths.selfRoot), target: paths.vscodePhpDebug(paths.dockerRoot) },
+  ],
+  'python-debugger': [],
+}
+
+/**
+ * 
+ * @param {DockerMount} mount 
+ * @returns {['--mount', string]} arguments for "--mount"
+ */
+const toDockerMountArgs = ({ type = 'bind', source, target, readOnly }) => {
+  const arg = [
+    `type=${type}`,
+    `source=${source}`,
+    `target=${target}`,
+    readOnly && 'readonly',
+  ].filter(Boolean).join(',')
+  return ['--mount', arg]
 }

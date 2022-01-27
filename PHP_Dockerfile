@@ -14,20 +14,8 @@ RUN pear
 # RUN echo "extension=xdebug.so" >> $PHP_INI
 # RUN cat $PHP_INI
 
-ENV SERVER_PORT=4711
-ENV ROOT=/usr/php-debug
+ENV ROOT=/usr/project
 WORKDIR ${ROOT}
-RUN mkdir ${ROOT}/programs
 
-# Debug server
-COPY ./vscode-php-debug $ROOT/vscode-php-debug
-
-# Script
-COPY ./node_modules $ROOT/node_modules
-COPY ./out $ROOT/src
-# COPY ./src $ROOT/src
-COPY ./package.json $ROOT/
-
-# EXPOSE ${SERVER_PORT}
-ENTRYPOINT ["node", "./src/script.js"]
+ENTRYPOINT ["node", "./out/script.js"]
 CMD [""]

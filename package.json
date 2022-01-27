@@ -5,10 +5,10 @@
   "main": "index.js",
   "scripts": {
     "build:ts": "tsc --outDir out",
-    "build:php": "npm run build:ts && docker build -f ./PHP_Dockerfile `# build-folder` . -t php-debugger",
-    "build:lldb": "npm run build:ts && docker build -f ./LLDB_Dockerfile `# build-folder` . -t lldb-debugger",
-    "build:python": "npm run build:ts && docker build -f ./Python_Dockerfile `# build-folder` . -t python-debugger",
-    "demo": "node call-script-demo.mjs"
+    "build:php": "docker build -f ./PHP_Dockerfile . -t php-debugger",
+    "build:lldb": "docker build -f ./LLDB_Dockerfile . -t lldb-debugger",
+    "build:python": "docker build -f ./Python_Dockerfile . -t python-debugger",
+    "debug": "node call-script-demo.mjs"
   },
   "author": "",
   "license": "ISC",
