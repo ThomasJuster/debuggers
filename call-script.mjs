@@ -57,7 +57,7 @@ export async function callScript(mainFilePath, logLevel = 'off') {
  * @property {DockerImage} image
  */
 
-/** @type {Record<import('./src/StepsRunner/factory').LanguageExtension, DockerRunConfig>} */
+/** @type {Record<import('./src/run-steps/factory').LanguageExtension, DockerRunConfig>} */
 const dockerRunConfigs = {
   '.c': {
     image: 'lldb-debugger',
@@ -123,7 +123,6 @@ const paths = {
 
 /** @type {Record<DockerImage, DockerMount[]>} */
 const mountsPerImage = {
-  // 'gdb-debugger': [],
   'lldb-debugger': [
     { source: paths.vscodeLldb(paths.selfRoot), target: paths.vscodeLldb(paths.dockerRoot) },
   ],

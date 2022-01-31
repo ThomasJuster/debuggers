@@ -5,8 +5,8 @@
   "main": "index.js",
   "scripts": {
     "build:ts": "tsc --outDir out",
-    "build:php": "docker build -f ./PHP_Dockerfile . -t php-debugger",
     "build:lldb": "docker build -f ./LLDB_Dockerfile . -t lldb-debugger",
+    "build:php": "docker build -f ./PHP_Dockerfile . -t php-debugger",
     "build:python": "docker build -f ./Python_Dockerfile . -t python-debugger",
     "debug": "node call-script-demo.mjs"
   },
