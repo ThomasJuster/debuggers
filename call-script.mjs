@@ -17,34 +17,13 @@ export async function callScript(mainFilePath, logLevel = 'off') {
 
   const { command, args } = dockerRunCommand(docker, mainFilePath, logLevel)
 
-  const json = new Promise((resolve, reject) => {
-    process.on('error', (error) => {
-      console.error('process error:', error)
-      reject(error)
-    })
-
-    const begin = 'RESULT_BEGIN'
-    const end = 'RESULT_END'
-    let raw = ''
-    const onData = (data) => {
-      let message = data.toString('utf-8')
-      if (message.includes(begin)) {
-        message = message.slice(message.indexOf(begin) + begin.length)
-        if (!message.includes(end)) raw += message
-      }
-      if (message.includes(end)) {
-        message = message.slice(0, message.indexOf(end))
-        resolve((raw + message).trim())
-        process.stdout.off('data', onData)
-      }
-    }
-    process.stdout.on('data', onData)
-  })
-
+  const begin = 'RESULT_BEGIN'
+  const end = 'RESULT_END'
   console.info('command\n', [command, ...args].join(' \\\n  '))
-  cp.spawnSync(command, args, { stdio: 'inherit' })
+  const dockerProcess = cp.spawnSync(command, args, { stdio: ['inherit', 'pipe', 'inherit'] })
+  const result = dockerProcess.stdout?.toString('utf-8')
   
-  const rawJSON = await json
+  const rawJSON = result.slice(result.indexOf(begin) + begin.length, result.indexOf(end)).trim()
   return rawJSON
 }
 
@@ -110,7 +89,6 @@ const paths = {
 
   vscodeLldb: (root) => path.resolve(root, './vscode-lldb'),
   vscodePhpDebug: (root) => path.resolve(root, './vscode-php-debug'),
-  // vscodeCppTools: (root) => path.resolve(root, './vscode-cpptools'),
 }
 
 /**
