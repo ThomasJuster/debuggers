@@ -80,7 +80,7 @@ const connect = (onExecutablePath: (thePath: string) => void): MakeRunnerParams[
   logger.debug(6, '[JDB StepsRunner] launch client')
   const launched = client.launch({
     program: executablePath,
-    // mainClass: ?
+    mainClass: removeExt(path.basename(executablePath))
   } as DebugProtocol.LaunchRequestArguments)
 
   await Promise.race([ launched, spawnedTerminalRequest ])
@@ -92,13 +92,18 @@ async function spawnAdapterServer(dap: { host: string, port: number }, processes
   logger.debug('Start JDB DAP Server on port', dap.port)
 
   await new Promise<void>((resolve) => {
-    const adapter = cp.spawn('jdb', ['-listen', dap.port.toString()], {
+    const adapter = cp.spawn('java', [
+      '-cp',
+      './vscode-java/./target/com.microsoft.java.debug.plugin-0.35.0.jar',
+      'com/microsoft/java/debug/plugin/internal/JavaDebugServer',
+      dap.port.toString(),
+    ], {
       stdio: ['ignore', 'pipe', 'pipe'],
     })
     processes.push(adapter)
     const resolveOnMessage = (origin: string) => (data: any) => {
       const message = data.toString('utf-8')
-      if (message.startsWith('Listening at address')) {
+      if (message.startsWith('Server listening on port')) {
         logger.debug(`DAP server ready (${origin})`, message)
         resolve()
       }
