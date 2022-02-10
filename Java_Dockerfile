@@ -1,0 +1,14 @@
+FROM node:16.13.2 as node
+FROM openjdk:11
+
+COPY --from=node /usr/local/lib/node_modules /usr/local/lib/node_modules
+COPY --from=node /usr/local/bin/node /usr/local/bin/node
+RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm
+
+ENV ROOT=/usr/project
+WORKDIR ${ROOT}
+
+COPY vscode-java/ ${ROOT}/vscode-java
+
+ENTRYPOINT ["node", "./out/script.js"]
+CMD [""]

@@ -20,15 +20,17 @@ export async function callScript(mainFilePath, logLevel = 'off') {
   const begin = 'RESULT_BEGIN'
   const end = 'RESULT_END'
   console.info('command\n', [command, ...args].join(' \\\n  '))
-  const dockerProcess = cp.spawnSync(command, args, { stdio: ['inherit', 'pipe', 'inherit'] })
+  // const dockerProcess = cp.spawnSync(command, args, { stdio: ['inherit', 'pipe', 'inherit'] })
+  const dockerProcess = cp.spawnSync(command, args, { stdio: 'inherit' })
   const result = dockerProcess.stdout?.toString('utf-8')
+  if (!result) return '{"nop":"nop"}'
   
   const rawJSON = result.slice(result.indexOf(begin) + begin.length, result.indexOf(end)).trim()
   return rawJSON
 }
 
 /**
- * @typedef {'lldb-debugger'|'php-debugger'|'python-debugger'} DockerImage
+ * @typedef {'java-debugger'|'lldb-debugger'|'php-debugger'|'python-debugger'} DockerImage
  */
 
 /**
@@ -43,6 +45,9 @@ const dockerRunConfigs = {
   },
   '.cpp': {
     image: 'lldb-debugger',
+  },
+  '.java': {
+    image: 'java-debugger',
   },
   '.php': {
     image: 'php-debugger',
@@ -101,6 +106,7 @@ const paths = {
 
 /** @type {Record<DockerImage, DockerMount[]>} */
 const mountsPerImage = {
+  'java-debugger': [],
   'lldb-debugger': [
     { source: paths.vscodeLldb(paths.selfRoot), target: paths.vscodeLldb(paths.dockerRoot) },
   ],
