@@ -4,10 +4,14 @@
 
 - Docker ([install instructions](https://docs.docker.com/engine/install/))
 - Node.JS
+- TypeScript: `npm install -g typescript`
 
 ## Install
 
 ```bash
+# Build the app
+npm run build:ts
+
 # Unzip lldb (for C/C++ only)
 unzip ./vscode-lldb/lldb.zip -d ./vscode-lldb/
 
