@@ -72,12 +72,12 @@ export const makeRunner = ({
   canDigVariable = () => true,
 }: MakeRunnerConfig): Runner => {
   let destroyed = false
-  const acc: Steps = {
-    snapshot: null,
+  const acc: StepsAcc = {
+    previous: null,
     patches: [],
   }
   let resolveSteps: () => void = () => {}
-  const steps = new Promise<Steps>((resolve) => {
+  const steps = new Promise<StepsAcc>((resolve) => {
     resolveSteps = () => resolve(acc)
   })
   return async (options: RunnerOptions) => {
@@ -149,11 +149,21 @@ export const makeRunner = ({
     }
     
     logger.debug(6, '[runner] return result')
-    return result
+    return result.patches
   }
 }
-export type Steps = {
-  snapshot: StepSnapshot | null // null once: when no first snapshot has been set
+
+export type Steps = StepsAcc['patches']
+
+export type StepsAcc = {
+  /**
+   * previous snapshot, `null` only at first step (step 0)
+   */
+  previous: StepSnapshot | null
+  /**
+   * Patch list per step
+   * Each patch list is computed from previous step and *not* from start.
+   */
   patches: Patch[][] // Patches _per step based on previous step_
 }
 export interface StepSnapshot {
@@ -256,7 +266,7 @@ interface SetSnapshotAndStepInParams {
   /**
    * Accumulator to push steps to. Must be an original (not cloned) mutable array
    */
-  acc: Steps,
+  acc: StepsAcc,
   /**
    * absolute paths
    */
@@ -265,18 +275,16 @@ interface SetSnapshotAndStepInParams {
   threadId: GetSnapshotParams['threadId'],
 }
 async function setSnapshotAndStepIn({ context, acc, filePaths, threadId }: SetSnapshotAndStepInParams): Promise<void> {
-  const i = acc.snapshot === null ? 1 : acc.patches.length + 2
+  const i = acc.previous === null ? 1 : acc.patches.length + 2
   try {
     logger.debug('Execute steps', i)
     const snapshot = await getSnapshot({ context, filePaths, threadId })
     logger.dir({ snapshot }, { colors: true, depth: 10 })
 
     if (snapshot.stackFrames.length > 0) {
-      if (acc.snapshot) {
-        const diff = getDiff(acc.snapshot, snapshot)
-        acc.patches.push(diff)
-      }
-      acc.snapshot = snapshot // set base for next step
+      const diff = getDiff(acc.previous, snapshot)
+      acc.patches.push(diff)
+      acc.previous = snapshot // set base for next step
     }
 
     snapshot.stackFrames.some(isStackFrameOfSourceFile(filePaths))
