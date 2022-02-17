@@ -1,6 +1,7 @@
 import cp from 'child_process'
 import fs from 'fs'
 import path from 'path'
+import { getDiff, rdiffResult as Patch } from 'recursive-diff'
 import { LogLevel, SocketDebugClient, Unsubscribable } from 'node-debugprotocol-client'
 import { DebugProtocol } from 'vscode-debugprotocol'
 import { logger } from '../logger'
@@ -71,7 +72,11 @@ export const makeRunner = ({
   canDigVariable = () => true,
 }: MakeRunnerConfig): Runner => {
   let destroyed = false
-  const stepsAcc: Steps = []
+  const stepsAcc: Steps = {
+    snapshot: null,
+    patches: [],
+  }
+  // const stepsAcc: Steps = []
   let resolveSteps: () => void = () => {}
   const steps = new Promise<Steps>((resolve) => {
     resolveSteps = () => resolve(stepsAcc)
@@ -118,7 +123,7 @@ export const makeRunner = ({
       const reasons = ['breakpoint', 'step']
       if (!reasons.includes(stoppedEvent.reason) || typeof stoppedEvent.threadId !== 'number') return
       setSnapshotAndStepIn({
-        stepsAcc,
+        acc: stepsAcc,
         filePaths: [options.main, ...options.files].map((file) => path.resolve(process.cwd(), file.relativePath)),
         context: { client, canDigScope, canDigVariable },
         threadId: stoppedEvent.threadId,
@@ -135,11 +140,11 @@ export const makeRunner = ({
 
     logger.debug(4, '[runner] await steps')
     const result = await steps
-    const filtered = result.map((snapshot) => ({
-      ...snapshot,
-      stackFrames: snapshot.stackFrames.filter((frame) => frame.source?.path === programPath),
-    })).filter(({ stackFrames }) => stackFrames.length > 0)
-    logger.dir({ steps: filtered }, { colors: true, depth: 20 })
+    // const filtered = result.map((snapshot) => ({
+    //   ...snapshot,
+    //   stackFrames: snapshot.stackFrames.filter((frame) => frame.source?.path === programPath),
+    // })).filter(({ stackFrames }) => stackFrames.length > 0)
+    logger.dir({ steps }, { colors: true, depth: 20 })
 
     logger.debug(5, '[runner] destroy')
     try {
@@ -152,7 +157,11 @@ export const makeRunner = ({
     return result
   }
 }
-export type Steps = StepSnapshot[]
+// export type Steps = StepSnapshot[]
+export type Steps = {
+  snapshot: StepSnapshot | null // null once: when no first snapshot has been set
+  patches: Patch[][] // Patches _per step based on previous step_
+}
 export interface StepSnapshot {
   stackFrames: StackFrame[]
 }
@@ -253,7 +262,7 @@ interface SetSnapshotAndStepInParams {
   /**
    * Accumulator to push steps to. Must be an original (not cloned) mutable array
    */
-  stepsAcc: Steps,
+  acc: Steps,
   /**
    * absolute paths
    */
@@ -261,13 +270,22 @@ interface SetSnapshotAndStepInParams {
   context: RunStepContext
   threadId: GetSnapshotParams['threadId'],
 }
-async function setSnapshotAndStepIn({ context, stepsAcc, filePaths, threadId }: SetSnapshotAndStepInParams): Promise<void> {
-  const i = stepsAcc.length
+async function setSnapshotAndStepIn({ context, acc, filePaths, threadId }: SetSnapshotAndStepInParams): Promise<void> {
+  const i = acc.snapshot === null ? 1 : acc.patches.length + 2
+  // const i = acc.length + 1
   try {
     logger.debug('Execute steps', i)
     const snapshot = await getSnapshot({ context, filePaths, threadId })
     logger.dir({ snapshot }, { colors: true, depth: 10 })
-    if (snapshot.stackFrames.length > 0) stepsAcc.push(snapshot)
+
+    if (snapshot.stackFrames.length > 0) {
+      if (acc.snapshot) {
+        const diff = getDiff(acc.snapshot, snapshot)
+        acc.patches.push(diff)
+      }
+      acc.snapshot = snapshot // set base for next step
+    }
+
     snapshot.stackFrames.some(isStackFrameOfSourceFile(filePaths))
       ? await context.client.stepIn({ threadId, granularity: 'instruction' })
       : await context.client.stepOut({ threadId, granularity: 'instruction' })
