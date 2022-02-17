@@ -72,14 +72,13 @@ export const makeRunner = ({
   canDigVariable = () => true,
 }: MakeRunnerConfig): Runner => {
   let destroyed = false
-  const stepsAcc: Steps = {
+  const acc: Steps = {
     snapshot: null,
     patches: [],
   }
-  // const stepsAcc: Steps = []
   let resolveSteps: () => void = () => {}
   const steps = new Promise<Steps>((resolve) => {
-    resolveSteps = () => resolve(stepsAcc)
+    resolveSteps = () => resolve(acc)
   })
   return async (options: RunnerOptions) => {
     const processes: cp.ChildProcess[] = []
@@ -123,7 +122,7 @@ export const makeRunner = ({
       const reasons = ['breakpoint', 'step']
       if (!reasons.includes(stoppedEvent.reason) || typeof stoppedEvent.threadId !== 'number') return
       setSnapshotAndStepIn({
-        acc: stepsAcc,
+        acc,
         filePaths: [options.main, ...options.files].map((file) => path.resolve(process.cwd(), file.relativePath)),
         context: { client, canDigScope, canDigVariable },
         threadId: stoppedEvent.threadId,
@@ -140,10 +139,6 @@ export const makeRunner = ({
 
     logger.debug(4, '[runner] await steps')
     const result = await steps
-    // const filtered = result.map((snapshot) => ({
-    //   ...snapshot,
-    //   stackFrames: snapshot.stackFrames.filter((frame) => frame.source?.path === programPath),
-    // })).filter(({ stackFrames }) => stackFrames.length > 0)
     logger.dir({ steps }, { colors: true, depth: 20 })
 
     logger.debug(5, '[runner] destroy')
@@ -157,7 +152,6 @@ export const makeRunner = ({
     return result
   }
 }
-// export type Steps = StepSnapshot[]
 export type Steps = {
   snapshot: StepSnapshot | null // null once: when no first snapshot has been set
   patches: Patch[][] // Patches _per step based on previous step_
@@ -272,7 +266,6 @@ interface SetSnapshotAndStepInParams {
 }
 async function setSnapshotAndStepIn({ context, acc, filePaths, threadId }: SetSnapshotAndStepInParams): Promise<void> {
   const i = acc.snapshot === null ? 1 : acc.patches.length + 2
-  // const i = acc.length + 1
   try {
     logger.debug('Execute steps', i)
     const snapshot = await getSnapshot({ context, filePaths, threadId })
