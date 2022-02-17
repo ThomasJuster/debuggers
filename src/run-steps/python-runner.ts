@@ -3,7 +3,7 @@ import path from 'path'
 import { LogLevel, SocketDebugClient } from 'node-debugprotocol-client'
 import { DebugProtocol } from 'vscode-debugprotocol'
 import { logger } from '../logger'
-import { makeRunner, MakeRunnerParams } from './runner'
+import { makeRunner, MakeRunnerConfig } from './runner'
 
 export const runStepsWithPythonDebugger = makeRunner({
   connect: (params) => connect(params),
@@ -13,7 +13,7 @@ export const runStepsWithPythonDebugger = makeRunner({
   },
 })
 
-const connect: MakeRunnerParams['connect'] = async ({ processes, programPath, logLevel, beforeInitialize }) => {
+const connect: MakeRunnerConfig['connect'] = async ({ processes, programPath, logLevel, beforeInitialize }) => {
   const language = 'Python'
   const dap = {
     host: 'localhost',
