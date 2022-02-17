@@ -4,19 +4,23 @@ import fs from 'fs'
 import path from 'path'
 import { DebugProtocol } from 'vscode-debugprotocol'
 import { logger } from '../logger'
-import { MakeRunnerParams, makeRunner, RunnerOptions } from './runner'
+import { MakeRunnerConfig, makeRunner, RunnerOptions } from './runner'
 
 type Language = 'C' | 'C++'
 
 export const runStepsWithLLDB = (language: Language, options: RunnerOptions) => {
   const config = configurations[language]
   let executablePath: string | null = null
+
   const runner = makeRunner({
     connect: connect(language, config, (exe) => executablePath = exe),
     canDigScope: (scope) => {
       // if (this.language === 'C++')
       const forbiddenScopes = ['Registers', 'Static']
       return !forbiddenScopes.includes(scope.name)
+    },
+    canDigVariable: (variable) => {
+      return !variable.name.startsWith('std::')
     },
     afterDestroy: async () => {
       logger.debug('[LLDB StepsRunner] remove executable file')
@@ -30,7 +34,7 @@ const connect = (
   language: Language,
   config: Configuration,
   onExecutablePath: (thePath: string) => void,
-): MakeRunnerParams['connect'] => async ({ beforeInitialize, logLevel, processes, programPath }) => {
+): MakeRunnerConfig['connect'] => async ({ beforeInitialize, logLevel, processes, programPath }) => {
   const dap = {
     host: 'localhost',
     port: 4711,

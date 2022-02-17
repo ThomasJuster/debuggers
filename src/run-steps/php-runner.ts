@@ -3,13 +3,13 @@ import { SocketDebugClient } from 'node-debugprotocol-client'
 import path from 'path'
 import { DebugProtocol } from 'vscode-debugprotocol'
 import { logger } from '../logger'
-import { makeRunner, MakeRunnerParams } from './runner'
+import { makeRunner, MakeRunnerConfig } from './runner'
 
 export const runStepsWithPHPDebugger = makeRunner({
   connect: (params) => connect(params),
 })
 
-const connect: MakeRunnerParams['connect'] = async ({ logLevel, processes, programPath, beforeInitialize, subscribers }) => {
+const connect: MakeRunnerConfig['connect'] = async ({ logLevel, processes, programPath, beforeInitialize, subscribers }) => {
   const language = 'PHP'
   const dap = {
     host: 'localhost',
@@ -18,7 +18,7 @@ const connect: MakeRunnerParams['connect'] = async ({ logLevel, processes, progr
 
   logger.debug(1, '[PHP StepsRunner] start adapter server')
     await spawnAdapterServer(dap, processes)
-    
+
     logger.debug(2, '[PHP StepsRunner] instantiate SocketDebugClient')
     const client = new SocketDebugClient({
       host: dap.host,
