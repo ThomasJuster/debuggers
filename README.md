@@ -1,3 +1,7 @@
+# ARCHIVED
+
+This project was a POC for [France IOI](https://github/France-ioi). The repo has been moved to the France IOI organization under the name of [codecast-debuggers](https://github.com/France-ioi/codecast-debuggers)
+
 # Debug Adapters
 
 ## Pre-requisites
