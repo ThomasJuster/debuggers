@@ -18,6 +18,8 @@
   },
   "devDependencies": {
     "@types/node": "^17.0.17",
+    "immer": "^9.0.12",
+    "recursive-diff": "^1.0.8",
     "ts-node": "^10.4.0",
     "typescript": "^4.5.4",
     "vscode-debugprotocol": "^1.50.1"

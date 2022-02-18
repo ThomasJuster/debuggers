@@ -1,6 +1,8 @@
 import cp from 'child_process'
 import fs from 'fs'
 import path from 'path'
+import { getDiff, rdiffResult as PatchDiff } from 'recursive-diff'
+import { Patch } from 'immer'
 import { LogLevel, SocketDebugClient, Unsubscribable } from 'node-debugprotocol-client'
 import { DebugProtocol } from 'vscode-debugprotocol'
 import { logger } from '../logger'
@@ -71,10 +73,13 @@ export const makeRunner = ({
   canDigVariable = () => true,
 }: MakeRunnerConfig): Runner => {
   let destroyed = false
-  const stepsAcc: Steps = []
+  const acc: StepsAcc = {
+    previous: null,
+    patches: [],
+  }
   let resolveSteps: () => void = () => {}
-  const steps = new Promise<Steps>((resolve) => {
-    resolveSteps = () => resolve(stepsAcc)
+  const steps = new Promise<StepsAcc>((resolve) => {
+    resolveSteps = () => resolve(acc)
   })
   return async (options: RunnerOptions) => {
     const processes: cp.ChildProcess[] = []
@@ -118,7 +123,7 @@ export const makeRunner = ({
       const reasons = ['breakpoint', 'step']
       if (!reasons.includes(stoppedEvent.reason) || typeof stoppedEvent.threadId !== 'number') return
       setSnapshotAndStepIn({
-        stepsAcc,
+        acc,
         filePaths: [options.main, ...options.files].map((file) => path.resolve(process.cwd(), file.relativePath)),
         context: { client, canDigScope, canDigVariable },
         threadId: stoppedEvent.threadId,
@@ -135,11 +140,7 @@ export const makeRunner = ({
 
     logger.debug(4, '[runner] await steps')
     const result = await steps
-    const filtered = result.map((snapshot) => ({
-      ...snapshot,
-      stackFrames: snapshot.stackFrames.filter((frame) => frame.source?.path === programPath),
-    })).filter(({ stackFrames }) => stackFrames.length > 0)
-    logger.dir({ steps: filtered }, { colors: true, depth: 20 })
+    logger.dir({ steps }, { colors: true, depth: 20 })
 
     logger.debug(5, '[runner] destroy')
     try {
@@ -149,10 +150,23 @@ export const makeRunner = ({
     }
     
     logger.debug(6, '[runner] return result')
-    return result
+    return result.patches
   }
 }
-export type Steps = StepSnapshot[]
+
+export type Steps = StepsAcc['patches']
+
+export type StepsAcc = {
+  /**
+   * previous snapshot, `null` only at first step (step 0)
+   */
+  previous: StepSnapshot | null
+  /**
+   * Patch list per step
+   * Each patch list is computed from previous step and *not* from start.
+   */
+  patches: Patch[][] // Patches _per step based on previous step_
+}
 export interface StepSnapshot {
   stackFrames: StackFrame[]
 }
@@ -253,7 +267,7 @@ interface SetSnapshotAndStepInParams {
   /**
    * Accumulator to push steps to. Must be an original (not cloned) mutable array
    */
-  stepsAcc: Steps,
+  acc: StepsAcc,
   /**
    * absolute paths
    */
@@ -261,13 +275,19 @@ interface SetSnapshotAndStepInParams {
   context: RunStepContext
   threadId: GetSnapshotParams['threadId'],
 }
-async function setSnapshotAndStepIn({ context, stepsAcc, filePaths, threadId }: SetSnapshotAndStepInParams): Promise<void> {
-  const i = stepsAcc.length
+async function setSnapshotAndStepIn({ context, acc, filePaths, threadId }: SetSnapshotAndStepInParams): Promise<void> {
+  const i = acc.previous === null ? 1 : acc.patches.length + 2
   try {
     logger.debug('Execute steps', i)
     const snapshot = await getSnapshot({ context, filePaths, threadId })
     logger.dir({ snapshot }, { colors: true, depth: 10 })
-    if (snapshot.stackFrames.length > 0) stepsAcc.push(snapshot)
+
+    if (snapshot.stackFrames.length > 0) {
+      const diff = getDiff(acc.previous, snapshot)
+      acc.patches.push(diff.map(recursiveDiffPatchToImmerPatch))
+      acc.previous = snapshot // set base for next step
+    }
+
     snapshot.stackFrames.some(isStackFrameOfSourceFile(filePaths))
       ? await context.client.stepIn({ threadId, granularity: 'instruction' })
       : await context.client.stepOut({ threadId, granularity: 'instruction' })
@@ -352,5 +372,18 @@ async function getVariable({ context, maxDepth, variable }: GetVariableParams, c
 function isStackFrameOfSourceFile(fileAbsolutePaths: string[]) {
   return (stackFrame: DebugProtocol.StackFrame) => {
     return !!stackFrame.source && fileAbsolutePaths.some((filePath) => filePath === stackFrame.source?.path)
+  }
+}
+
+function recursiveDiffPatchToImmerPatch(patch: PatchDiff): Patch {
+  const opAdapter: Record<PatchDiff['op'], Patch['op']> = {
+    add: 'add',
+    delete: 'remove',
+    update: 'replace',
+  }
+  return {
+    op: opAdapter[patch.op],
+    path: patch.path,
+    value: patch.val,
   }
 }
