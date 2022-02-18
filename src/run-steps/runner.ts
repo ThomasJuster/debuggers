@@ -1,7 +1,8 @@
 import cp from 'child_process'
 import fs from 'fs'
 import path from 'path'
-import { getDiff, rdiffResult as Patch } from 'recursive-diff'
+import { getDiff, rdiffResult as PatchDiff } from 'recursive-diff'
+import { Patch } from 'immer'
 import { LogLevel, SocketDebugClient, Unsubscribable } from 'node-debugprotocol-client'
 import { DebugProtocol } from 'vscode-debugprotocol'
 import { logger } from '../logger'
@@ -283,7 +284,7 @@ async function setSnapshotAndStepIn({ context, acc, filePaths, threadId }: SetSn
 
     if (snapshot.stackFrames.length > 0) {
       const diff = getDiff(acc.previous, snapshot)
-      acc.patches.push(diff)
+      acc.patches.push(diff.map(recursiveDiffPatchToImmerPatch))
       acc.previous = snapshot // set base for next step
     }
 
@@ -371,5 +372,18 @@ async function getVariable({ context, maxDepth, variable }: GetVariableParams, c
 function isStackFrameOfSourceFile(fileAbsolutePaths: string[]) {
   return (stackFrame: DebugProtocol.StackFrame) => {
     return !!stackFrame.source && fileAbsolutePaths.some((filePath) => filePath === stackFrame.source?.path)
+  }
+}
+
+function recursiveDiffPatchToImmerPatch(patch: PatchDiff): Patch {
+  const opAdapter: Record<PatchDiff['op'], Patch['op']> = {
+    add: 'add',
+    delete: 'remove',
+    update: 'replace',
+  }
+  return {
+    op: opAdapter[patch.op],
+    path: patch.path,
+    value: patch.val,
   }
 }
